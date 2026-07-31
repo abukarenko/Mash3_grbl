@@ -23,6 +23,7 @@
 
 /* USER CODE BEGIN INCLUDE */
 #include "board_test.h"
+#include "grbl_platform.h"
 
 /* USER CODE END INCLUDE */
 
@@ -95,6 +96,7 @@ uint8_t UserRxBufferFS[APP_RX_DATA_SIZE];
 uint8_t UserTxBufferFS[APP_TX_DATA_SIZE];
 
 /* USER CODE BEGIN PRIVATE_VARIABLES */
+static uint8_t line_coding[7] = { 0x00U, 0xC2U, 0x01U, 0x00U, 0x00U, 0x00U, 0x08U };
 
 /* USER CODE END PRIVATE_VARIABLES */
 
@@ -151,6 +153,7 @@ USBD_CDC_ItfTypeDef USBD_Interface_fops_FS =
 static int8_t CDC_Init_FS(void)
 {
   /* USER CODE BEGIN 3 */
+  BoardTest_SetUsbPortOpen(0U);
   /* Set Application Buffers */
   USBD_CDC_SetTxBuffer(&hUsbDeviceFS, UserTxBufferFS, 0);
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, UserRxBufferFS);
@@ -165,6 +168,7 @@ static int8_t CDC_Init_FS(void)
 static int8_t CDC_DeInit_FS(void)
 {
   /* USER CODE BEGIN 4 */
+  BoardTest_SetUsbPortOpen(0U);
   return (USBD_OK);
   /* USER CODE END 4 */
 }
@@ -219,15 +223,18 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
   /* 6      | bDataBits  |   1   | Number Data bits (5, 6, 7, 8 or 16).          */
   /*******************************************************************************/
     case CDC_SET_LINE_CODING:
-
+      memcpy(line_coding, pbuf, sizeof(line_coding));
     break;
 
     case CDC_GET_LINE_CODING:
-
+      memcpy(pbuf, line_coding, sizeof(line_coding));
     break;
 
     case CDC_SET_CONTROL_LINE_STATE:
-
+    {
+      const USBD_SetupReqTypedef *request = (const USBD_SetupReqTypedef *)pbuf;
+      BoardTest_SetUsbPortOpen((request->wValue & 0x0001U) != 0U);
+    }
     break;
 
     case CDC_SEND_BREAK:
@@ -260,7 +267,7 @@ static int8_t CDC_Control_FS(uint8_t cmd, uint8_t* pbuf, uint16_t length)
 static int8_t CDC_Receive_FS(uint8_t* Buf, uint32_t *Len)
 {
   /* USER CODE BEGIN 6 */
-  BoardTest_OnUsbRx(Buf, *Len);
+  grbl_serial_receive(Buf, *Len);
   USBD_CDC_SetRxBuffer(&hUsbDeviceFS, &Buf[0]);
   USBD_CDC_ReceivePacket(&hUsbDeviceFS);
   return (USBD_OK);
