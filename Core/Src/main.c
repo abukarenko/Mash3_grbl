@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "board_test.h"
+#include "grbl.h"
 
 /* USER CODE END Includes */
 
@@ -95,6 +96,7 @@ int main(void)
   BoardTest_UsbConnect();
   /* USER CODE BEGIN 2 */
   BoardTest_Init();
+  Grbl_Run();
 
   /* USER CODE END 2 */
 
