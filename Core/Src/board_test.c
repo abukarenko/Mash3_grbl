@@ -98,9 +98,11 @@ static uint32_t lcd_diagnostic_tick;
 static float grbl_machine_position[3];
 static float tft_last_machine_position[3] = {1.0e30f, 1.0e30f, 1.0e30f};
 static float grbl_feed_rate;
-static uint32_t tft_last_feed_rate = UINT32_MAX;
 static char grbl_state_text[12] = "START";
-static char tft_last_state_text[12];
+static char tft_last_axis_text[3][11] = {
+    "X    +0.00", "Y    +0.00", "Z    +0.00"};
+static char tft_last_feed_text[11] = "FEED 00000";
+static char tft_last_state_line[18] = "STATE START      ";
 static volatile uint8_t grbl_status_pending;
 static uint32_t tft_grbl_update_tick;
 static uint8_t tft_grbl_update_field;
@@ -628,27 +630,37 @@ static void tft_draw_grbl_status_field(void) {
     if (grbl_machine_position[axis] != tft_last_machine_position[axis]) {
       tft_format_axis(text, sizeof(text), axis_name[axis],
                       grbl_machine_position[axis]);
-      tft_draw_char(axis_x[axis], axis_y[axis], text[0], 3U,
-                    axis_color[axis], panel);
-      tft_draw_text((uint16_t)(axis_x[axis] + 18U), axis_y[axis],
-                    &text[1], 3U, cyan, panel);
+      for (uint8_t character = 0U; character < 10U; character++) {
+        if (text[character] != tft_last_axis_text[axis][character]) {
+          uint32_t color = character == 0U ? axis_color[axis] : cyan;
+          tft_draw_char((uint16_t)(axis_x[axis] + 18U * character),
+                        axis_y[axis], text[character], 3U, color, panel);
+          tft_last_axis_text[axis][character] = text[character];
+          return;
+        }
+      }
       tft_last_machine_position[axis] = grbl_machine_position[axis];
     }
   } else if (tft_grbl_update_field == 3U) {
     uint32_t feed = (uint32_t)(grbl_feed_rate + 0.5f);
-    if (feed != tft_last_feed_rate) {
-      snprintf(text, sizeof(text), "FEED %05lu", (unsigned long)feed);
-      tft_draw_text(30U, 241U, text, 2U, 0xFFD740U, panel);
-      tft_last_feed_rate = feed;
+    snprintf(text, sizeof(text), "FEED %05lu", (unsigned long)feed);
+    for (uint8_t character = 0U; character < 10U; character++) {
+      if (text[character] != tft_last_feed_text[character]) {
+        tft_draw_char((uint16_t)(30U + 12U * character), 241U,
+                      text[character], 2U, 0xFFD740U, panel);
+        tft_last_feed_text[character] = text[character];
+        return;
+      }
     }
   } else {
-    if (strncmp(grbl_state_text, tft_last_state_text,
-                sizeof(tft_last_state_text)) != 0) {
-      snprintf(text, sizeof(text), "STATE %-11s", grbl_state_text);
-      tft_draw_text(18U, 297U, text, 2U, 0xFFFFFFU, 0x143C5AU);
-      strncpy(tft_last_state_text, grbl_state_text,
-              sizeof(tft_last_state_text));
-      tft_last_state_text[sizeof(tft_last_state_text) - 1U] = '\0';
+    snprintf(text, sizeof(text), "STATE %-11s", grbl_state_text);
+    for (uint8_t character = 0U; character < 17U; character++) {
+      if (text[character] != tft_last_state_line[character]) {
+        tft_draw_char((uint16_t)(18U + 12U * character), 297U,
+                      text[character], 2U, 0xFFFFFFU, 0x143C5AU);
+        tft_last_state_line[character] = text[character];
+        return;
+      }
     }
   }
 
@@ -1052,7 +1064,7 @@ void BoardTest_Task(void) {
       tft_draw_usb_status();
     }
     if (grbl_status_pending &&
-        (uint32_t)(HAL_GetTick() - tft_grbl_update_tick) >= 20U) {
+        (uint32_t)(HAL_GetTick() - tft_grbl_update_tick) >= 5U) {
       tft_grbl_update_tick = HAL_GetTick();
       tft_draw_grbl_status_field();
     }
