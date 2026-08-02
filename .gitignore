@@ -9,6 +9,7 @@ Release/
 *.elf
 *.bin
 *.hex
+!Firmware/*.hex
 *.map
 *.list
 
