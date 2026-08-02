@@ -20,6 +20,7 @@
 */
 
 #include "grbl.h"
+#include "board_test.h"
 
 // Define line flags. Includes comment type tracking and line overflow detection.
 #define LINE_FLAG_OVERFLOW bit(0)
@@ -33,6 +34,26 @@ void LedBlink(void);
 #endif
 
 static void protocol_exec_rt_suspend();
+static uint8_t touch_unlock_after_reset;
+
+static void protocol_execute_touch_action()
+{
+  BoardTouchAction action = BoardTest_TakeTouchAction();
+
+  if (action == BOARD_TOUCH_ACTION_RESET_UNLOCK) {
+    touch_unlock_after_reset = 1U;
+    return;
+  }
+  if (action != BOARD_TOUCH_ACTION_SPINDLE_TOGGLE) { return; }
+  if (sys.suspend) {
+    if (sys.state == STATE_HOLD) {
+      system_set_exec_accessory_override_flag(EXEC_SPINDLE_OVR_STOP);
+    }
+    return;
+  }
+  (void)gc_execute_line(spindle_get_state() == SPINDLE_STATE_DISABLE ?
+                        "M3" : "M5");
+}
 
 
 /*
@@ -70,6 +91,12 @@ void protocol_main_loop()
   // Primary loop! Upon a system abort, this exits back to main() to reset the system.
   // This is also where Grbl idles while waiting for something to do.
   // ---------------------------------------------------------------------------------
+
+  if (touch_unlock_after_reset) {
+    char unlock_command[] = "$X";
+    touch_unlock_after_reset = 0U;
+    (void)system_execute_line(unlock_command);
+  }
 
   uint8_t line_flags = 0;
   uint8_t char_counter = 0;
@@ -156,6 +183,8 @@ void protocol_main_loop()
 
       }
     }
+
+    protocol_execute_touch_action();
 
     // If there are no more characters in the serial read buffer to be processed and executed,
     // this indicates that g-code streaming has either filled the planner buffer or has
@@ -763,6 +792,8 @@ static void protocol_exec_rt_suspend()
       }
     }
 
+    grbl_platform_task();
+    protocol_execute_touch_action();
     protocol_exec_rt_system();
 
   }

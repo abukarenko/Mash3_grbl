@@ -23,6 +23,94 @@
 
 settings_t settings;
 
+static void write_global_settings(void);
+
+typedef struct {
+  float steps_per_mm[3];
+  float max_rate[3];
+  float acceleration[3];
+  float max_travel[3];
+  uint8_t pulse_microseconds;
+  uint8_t step_invert_mask;
+  uint8_t dir_invert_mask;
+  uint8_t stepper_idle_lock_time;
+  uint8_t status_report_mask;
+  float junction_deviation;
+  float arc_tolerance;
+  float rpm_max;
+  float rpm_min;
+  uint8_t flags;
+  uint8_t homing_dir_mask;
+  float homing_feed_rate;
+  float homing_seek_rate;
+  uint16_t homing_debounce_delay;
+  float homing_pulloff;
+} settings_v10_t;
+
+_Static_assert(sizeof(settings_v10_t) == 92U,
+               "Unexpected legacy settings layout");
+
+static uint8_t settings_migrate_v10(void)
+{
+  settings_v10_t old;
+  float old_coord[SETTING_INDEX_NCOORD + 1U][3];
+  uint8_t coord_valid[SETTING_INDEX_NCOORD + 1U];
+  uint8_t idx;
+
+  if (!memcpy_from_eeprom_with_checksum((char *)&old, EEPROM_ADDR_GLOBAL,
+                                        sizeof(old))) {
+    return false;
+  }
+
+  for (idx = 0U; idx <= SETTING_INDEX_NCOORD; idx++) {
+    uint32_t old_addr = EEPROM_ADDR_PARAMETERS + idx * (sizeof(float) * 3U + 1U);
+    coord_valid[idx] = memcpy_from_eeprom_with_checksum(
+        (char *)old_coord[idx], old_addr, sizeof(old_coord[idx]));
+  }
+
+  memset(&settings, 0, sizeof(settings));
+  for (idx = 0U; idx < 3U; idx++) {
+    settings.steps_per_mm[idx] = old.steps_per_mm[idx];
+    settings.max_rate[idx] = old.max_rate[idx];
+    settings.acceleration[idx] = old.acceleration[idx];
+    settings.max_travel[idx] = old.max_travel[idx];
+  }
+  settings.steps_per_mm[A_AXIS] = DEFAULT_A_STEPS_PER_DEGREE;
+  settings.max_rate[A_AXIS] = DEFAULT_A_MAX_RATE;
+  settings.acceleration[A_AXIS] = DEFAULT_A_ACCELERATION;
+  settings.max_travel[A_AXIS] = -DEFAULT_A_MAX_TRAVEL;
+
+  settings.pulse_microseconds = old.pulse_microseconds;
+  settings.step_invert_mask = old.step_invert_mask |
+      (DEFAULT_STEPPING_INVERT_MASK & bit(A_AXIS));
+  settings.dir_invert_mask = old.dir_invert_mask |
+      (DEFAULT_DIRECTION_INVERT_MASK & bit(A_AXIS));
+  settings.stepper_idle_lock_time = old.stepper_idle_lock_time;
+  settings.status_report_mask = old.status_report_mask;
+  settings.junction_deviation = old.junction_deviation;
+  settings.arc_tolerance = old.arc_tolerance;
+  settings.rpm_max = old.rpm_max;
+  settings.rpm_min = old.rpm_min;
+  settings.flags = old.flags;
+  settings.homing_dir_mask = old.homing_dir_mask & LIMIT_MASK;
+  settings.homing_feed_rate = old.homing_feed_rate;
+  settings.homing_seek_rate = old.homing_seek_rate;
+  settings.homing_debounce_delay = old.homing_debounce_delay;
+  settings.homing_pulloff = old.homing_pulloff;
+  write_global_settings();
+
+  for (idx = 0U; idx <= SETTING_INDEX_NCOORD; idx++) {
+    float coord[N_AXIS] = {0.0f};
+    if (coord_valid[idx]) {
+      coord[X_AXIS] = old_coord[idx][X_AXIS];
+      coord[Y_AXIS] = old_coord[idx][Y_AXIS];
+      coord[Z_AXIS] = old_coord[idx][Z_AXIS];
+    }
+    settings_write_coord_data(idx, coord);
+  }
+  return true;
+}
+
 
 // Method to store startup lines into EEPROM
 void settings_store_startup_line(uint8_t n, char *line)
@@ -57,7 +145,7 @@ void settings_write_coord_data(uint8_t coord_select, float *coord_data)
 
 // Method to store Grbl global settings struct and version number into EEPROM
 // NOTE: This function can only be called in IDLE state.
-void write_global_settings()
+static void write_global_settings(void)
 {
   eeprom_put_char(0, SETTINGS_VERSION);
   memcpy_to_eeprom_with_checksum(EEPROM_ADDR_GLOBAL, (char*)&settings, sizeof(settings_t));
@@ -97,15 +185,19 @@ void settings_restore(uint8_t restore_flag) {
     settings.steps_per_mm[X_AXIS] = DEFAULT_X_STEPS_PER_MM;
     settings.steps_per_mm[Y_AXIS] = DEFAULT_Y_STEPS_PER_MM;
     settings.steps_per_mm[Z_AXIS] = DEFAULT_Z_STEPS_PER_MM;
+    settings.steps_per_mm[A_AXIS] = DEFAULT_A_STEPS_PER_DEGREE;
     settings.max_rate[X_AXIS] = DEFAULT_X_MAX_RATE;
     settings.max_rate[Y_AXIS] = DEFAULT_Y_MAX_RATE;
     settings.max_rate[Z_AXIS] = DEFAULT_Z_MAX_RATE;
+    settings.max_rate[A_AXIS] = DEFAULT_A_MAX_RATE;
     settings.acceleration[X_AXIS] = DEFAULT_X_ACCELERATION;
     settings.acceleration[Y_AXIS] = DEFAULT_Y_ACCELERATION;
     settings.acceleration[Z_AXIS] = DEFAULT_Z_ACCELERATION;
+    settings.acceleration[A_AXIS] = DEFAULT_A_ACCELERATION;
     settings.max_travel[X_AXIS] = (-DEFAULT_X_MAX_TRAVEL);
     settings.max_travel[Y_AXIS] = (-DEFAULT_Y_MAX_TRAVEL);
     settings.max_travel[Z_AXIS] = (-DEFAULT_Z_MAX_TRAVEL);
+    settings.max_travel[A_AXIS] = (-DEFAULT_A_MAX_TRAVEL);
 
     write_global_settings();
   }
@@ -168,9 +260,7 @@ uint8_t settings_read_coord_data(uint8_t coord_select, float *coord_data)
   uint32_t addr = coord_select*(sizeof(float)*N_AXIS+1) + EEPROM_ADDR_PARAMETERS;
   if (!(memcpy_from_eeprom_with_checksum((char*)coord_data, addr, sizeof(float)*N_AXIS))) {
     // Reset with default zero vector
-		coord_data[X_AXIS] = 0.0f;
-		coord_data[Y_AXIS] = 0.0f;
-		coord_data[Z_AXIS] = 0.0f;
+		memset(coord_data, 0, sizeof(float)*N_AXIS);
 		settings_write_coord_data(coord_select,coord_data);
     return(false);
   }
@@ -310,6 +400,10 @@ uint8_t settings_store_global_setting(uint8_t parameter, float value) {
 
 // Initialize the config subsystem
 void settings_init() {
+  if ((eeprom_get_char(0) == SETTINGS_VERSION_LEGACY_3_AXIS) &&
+      settings_migrate_v10()) {
+    return;
+  }
   if(!read_global_settings()) {
     report_status_message(STATUS_SETTING_READ_FAIL);
     settings_restore(SETTINGS_RESTORE_ALL); // Force restore all EEPROM data.

@@ -80,7 +80,7 @@ uint8_t gc_execute_line(char *line)
   uint8_t coord_select = 0; // Tracks G10 P coordinate selection for execution
 
   // Initialize bitflag tracking variables for axis indices compatible operations.
-  uint8_t axis_words = 0; // XYZ tracking
+  uint8_t axis_words = 0; // X/Y/Z/A tracking
   uint8_t ijk_words = 0; // IJK tracking
 
   // Initialize command and value words and parser flags variables.
@@ -296,7 +296,7 @@ uint8_t gc_execute_line(char *line)
            legal g-code words and stores their value. Error-checking is performed later since some
            words (I,J,K,L,P,R) have multiple connotations and/or depend on the issued commands. */
         switch(letter){
-          // case 'A': // Not supported
+          case 'A': word_bit = WORD_A; gc_block.values.xyz[A_AXIS] = value; axis_words |= (1<<A_AXIS); break;
           // case 'B': // Not supported
           // case 'C': // Not supported
           // case 'D': // Not supported
@@ -473,9 +473,9 @@ uint8_t gc_execute_line(char *line)
   // Pre-convert XYZ coordinate values to millimeters, if applicable.
   uint8_t idx;
   if (gc_block.modal.units == UNITS_MODE_INCHES) {
-    for (idx=0; idx<N_AXIS; idx++) { // Axes indices are consistent, so loop may be used.
+    for (idx=0; idx<N_AXIS; idx++) { // Rotary A remains in degrees in both G20 and G21.
       if (bit_istrue(axis_words,bit(idx)) ) {
-        gc_block.values.xyz[idx] *= MM_PER_INCH;
+        if (idx != A_AXIS) { gc_block.values.xyz[idx] *= MM_PER_INCH; }
       }
     }
   }
@@ -833,7 +833,9 @@ uint8_t gc_execute_line(char *line)
   } else {
       bit_false(value_words, (bit(WORD_N) | bit(WORD_F) | bit(WORD_S) | bit(WORD_T))); // Remove single-meaning value words.
   }
-  if (axis_command) { bit_false(value_words,(bit(WORD_X)|bit(WORD_Y)|bit(WORD_Z))); } // Remove axis words.
+  if (axis_command) {
+    bit_false(value_words,(bit(WORD_X)|bit(WORD_Y)|bit(WORD_Z)|bit(WORD_A)));
+  } // Remove axis words.
   if (value_words) { FAIL(STATUS_GCODE_UNUSED_WORDS); } // [Unused words]
 
   /* -------------------------------------------------------------------------------------

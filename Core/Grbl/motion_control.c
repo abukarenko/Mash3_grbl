@@ -119,7 +119,16 @@ void mc_arc(float *target, plan_line_data_t *pl_data, float *position, float *of
     }
     
     float theta_per_segment = angular_travel/segments;
-    float linear_per_segment = (target[axis_linear] - position[axis_linear])/segments;
+    float linear_per_segment[N_AXIS];
+    uint8_t linear_axis;
+    for (linear_axis = 0; linear_axis < N_AXIS; linear_axis++) {
+      if ((linear_axis == axis_linear) || (linear_axis == A_AXIS)) {
+        linear_per_segment[linear_axis] =
+            (target[linear_axis] - position[linear_axis])/segments;
+      } else {
+        linear_per_segment[linear_axis] = 0.0f;
+      }
+    }
 
     /* Vector rotation by transformation matrix: r is the original vector, r_T is the rotated vector,
        and phi is the angle of rotation. Solution approach by Jens Geisler.
@@ -178,7 +187,11 @@ void mc_arc(float *target, plan_line_data_t *pl_data, float *position, float *of
       // Update arc_target location
       position[axis_0] = center_axis0 + r_axis0;
       position[axis_1] = center_axis1 + r_axis1;
-      position[axis_linear] += linear_per_segment;
+      for (linear_axis = 0; linear_axis < N_AXIS; linear_axis++) {
+        if ((linear_axis == axis_linear) || (linear_axis == A_AXIS)) {
+          position[linear_axis] += linear_per_segment[linear_axis];
+        }
+      }
 
       mc_line(position, pl_data);
 

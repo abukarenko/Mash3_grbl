@@ -408,6 +408,7 @@ uint8_t system_check_travel_limits(float *target)
 {
   uint8_t idx;
   for (idx=0; idx<N_AXIS; idx++) {
+    if (idx == A_AXIS) { continue; } // Rotary A is continuous and has no soft limit.
     #ifdef HOMING_FORCE_SET_ORIGIN
       // When homing forced set origin is enabled, soft limits checks need to account for directionality.
       // NOTE: max_travel is stored as negative

@@ -31,12 +31,15 @@
   #define X_STEP_BIT 0
   #define Y_STEP_BIT 1
   #define Z_STEP_BIT 2
-  #define STEP_MASK ((1U<<X_STEP_BIT)|(1U<<Y_STEP_BIT)|(1U<<Z_STEP_BIT))
+  #define A_STEP_BIT 3
+  #define STEP_MASK ((1U<<X_STEP_BIT)|(1U<<Y_STEP_BIT)|(1U<<Z_STEP_BIT)|(1U<<A_STEP_BIT))
 
   #define X_DIRECTION_BIT 0
   #define Y_DIRECTION_BIT 1
   #define Z_DIRECTION_BIT 2
-  #define DIRECTION_MASK ((1U<<X_DIRECTION_BIT)|(1U<<Y_DIRECTION_BIT)|(1U<<Z_DIRECTION_BIT))
+  #define A_DIRECTION_BIT 3
+  #define DIRECTION_MASK ((1U<<X_DIRECTION_BIT)|(1U<<Y_DIRECTION_BIT)| \
+                          (1U<<Z_DIRECTION_BIT)|(1U<<A_DIRECTION_BIT))
 
   #define X_LIMIT_BIT 0
   #define Y_LIMIT_BIT 1

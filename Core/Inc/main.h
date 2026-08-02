@@ -83,8 +83,8 @@ void Error_Handler(void);
 #define Y_LIMIT_GPIO_Port GPIOB
 #define Z_LIMIT_Pin GPIO_PIN_14
 #define Z_LIMIT_GPIO_Port GPIOB
-#define A_LIMIT_Pin GPIO_PIN_15
-#define A_LIMIT_GPIO_Port GPIOB
+#define PROBE_Pin GPIO_PIN_15
+#define PROBE_GPIO_Port GPIOB
 #define OUT1_Pin GPIO_PIN_6
 #define OUT1_GPIO_Port GPIOC
 #define OUT2_Pin GPIO_PIN_7
