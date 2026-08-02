@@ -50,19 +50,21 @@ const PORTPINDEF step_pin_mask[N_AXIS] =
 	1 << X_STEP_BIT,
 	1 << Y_STEP_BIT,
 	1 << Z_STEP_BIT,
-
+	1 << A_STEP_BIT,
 };
 const PORTPINDEF direction_pin_mask[N_AXIS] =
 {
 	1 << X_DIRECTION_BIT,
 	1 << Y_DIRECTION_BIT,
 	1 << Z_DIRECTION_BIT,
+	1 << A_DIRECTION_BIT,
 };
 const PORTPINDEF limit_pin_mask[N_AXIS] =
 {
 	1 << X_LIMIT_BIT,
 	1 << Y_LIMIT_BIT,
 	1 << Z_LIMIT_BIT,
+	0,
 };
 
 // Define Adaptive Multi-Axis Step-Smoothing(AMASS) levels and cutoff frequencies. The highest level
@@ -137,7 +139,8 @@ typedef struct {
   // Used by the bresenham line algorithm
   uint32_t counter_x,        // Counter variables for the bresenham line tracer
            counter_y,
-           counter_z;
+           counter_z,
+           counter_a;
   #ifdef STEP_PULSE_DELAY
     uint8_t step_bits;  // Stores out_bits output to complete the step pulse delay
   #endif
@@ -533,7 +536,8 @@ void Timer1Proc()
         st.exec_block = &st_block_buffer[st.exec_block_index];
 
         // Initialize Bresenham line and distance counters
-        st.counter_x = st.counter_y = st.counter_z = (st.exec_block->step_event_count >> 1);
+        st.counter_x = st.counter_y = st.counter_z = st.counter_a =
+            (st.exec_block->step_event_count >> 1);
       }
       st.dir_outbits = st.exec_block->direction_bits ^ dir_port_invert_mask;
 
@@ -542,6 +546,7 @@ void Timer1Proc()
         st.steps[X_AXIS] = st.exec_block->steps[X_AXIS] >> st.exec_segment->amass_level;
         st.steps[Y_AXIS] = st.exec_block->steps[Y_AXIS] >> st.exec_segment->amass_level;
         st.steps[Z_AXIS] = st.exec_block->steps[Z_AXIS] >> st.exec_segment->amass_level;
+        st.steps[A_AXIS] = st.exec_block->steps[A_AXIS] >> st.exec_segment->amass_level;
       #endif
 
       #ifdef VARIABLE_SPINDLE
@@ -601,6 +606,17 @@ void Timer1Proc()
     st.counter_z -= st.exec_block->step_event_count;
     if (st.exec_block->direction_bits & (1<<Z_DIRECTION_BIT)) { sys_position[Z_AXIS]--; }
     else { sys_position[Z_AXIS]++; }
+  }
+  #ifdef ADAPTIVE_MULTI_AXIS_STEP_SMOOTHING
+    st.counter_a += st.steps[A_AXIS];
+  #else
+    st.counter_a += st.exec_block->steps[A_AXIS];
+  #endif
+  if (st.counter_a > st.exec_block->step_event_count) {
+    st.step_outbits |= (1<<A_STEP_BIT);
+    st.counter_a -= st.exec_block->step_event_count;
+    if (st.exec_block->direction_bits & (1<<A_DIRECTION_BIT)) { sys_position[A_AXIS]--; }
+    else { sys_position[A_AXIS]++; }
   }
 
   // During a homing cycle, lock out and prevent desired axes from moving.

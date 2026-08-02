@@ -32,7 +32,8 @@ static void grbl_platform_update_display(void)
   memcpy(position_steps, sys_position, sizeof(position_steps));
   if (!primask) { __enable_irq(); }
   system_convert_array_steps_to_mpos(machine_position, position_steps);
-  BoardTest_SetGrblStatus(machine_position, st_get_realtime_rate(),
+  BoardTest_SetGrblStatus(machine_position, sys.spindle_speed,
+                          limits_get_state(), probe_get_state(),
                           grbl_state_text(sys.state));
 }
 
@@ -124,6 +125,7 @@ void grbl_platform_set_step_outputs(uint8_t bits)
   write_axis_pin(X_STEP_GPIO_Port, X_STEP_Pin, bits & (1U << 0));
   write_axis_pin(Y_STEP_GPIO_Port, Y_STEP_Pin, bits & (1U << 1));
   write_axis_pin(Z_STEP_GPIO_Port, Z_STEP_Pin, bits & (1U << 2));
+  write_axis_pin(A_STEP_GPIO_Port, A_STEP_Pin, bits & (1U << 3));
 }
 
 void grbl_platform_set_direction_outputs(uint8_t bits)
@@ -131,6 +133,7 @@ void grbl_platform_set_direction_outputs(uint8_t bits)
   write_axis_pin(X_DIR_GPIO_Port, X_DIR_Pin, bits & (1U << 0));
   write_axis_pin(Y_DIR_GPIO_Port, Y_DIR_Pin, bits & (1U << 1));
   write_axis_pin(Z_DIR_GPIO_Port, Z_DIR_Pin, bits & (1U << 2));
+  write_axis_pin(A_DIR_GPIO_Port, A_DIR_Pin, bits & (1U << 3));
 }
 
 uint8_t grbl_platform_limits_state(void)
@@ -150,7 +153,7 @@ uint8_t grbl_platform_limits_state(void)
 
 uint8_t grbl_platform_probe_state(void)
 {
-  return HAL_GPIO_ReadPin(A_LIMIT_GPIO_Port, A_LIMIT_Pin) == GPIO_PIN_SET;
+  return HAL_GPIO_ReadPin(PROBE_GPIO_Port, PROBE_Pin) == GPIO_PIN_SET;
 }
 
 uint8_t grbl_platform_control_state(void)
