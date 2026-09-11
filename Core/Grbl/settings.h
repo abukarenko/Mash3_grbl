@@ -27,7 +27,8 @@
 
 // Version of the EEPROM data. Will be used to migrate existing data from older versions of Grbl
 // when firmware is upgraded. Always stored in byte 0 of eeprom
-#define SETTINGS_VERSION 11  // Four-axis settings layout.
+#define SETTINGS_VERSION 12  // Adds persistent probe-to-resume assignment.
+#define SETTINGS_VERSION_LEGACY_4_AXIS 11
 #define SETTINGS_VERSION_LEGACY_3_AXIS 10
 
 // Define bit flag masks for the boolean settings in settings.flag.
@@ -102,6 +103,7 @@ typedef struct {
   float homing_seek_rate;
   uint16_t homing_debounce_delay;
   float homing_pulloff;
+  uint8_t probe_resume_enable; // $7: use probe input to resume an M0 pause.
 } settings_t;
 extern settings_t settings;
 

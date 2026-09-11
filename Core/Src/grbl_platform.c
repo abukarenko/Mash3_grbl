@@ -4,6 +4,58 @@
 
 static uint32_t grbl_display_sample_tick;
 
+#define PROBE_RESUME_DEBOUNCE_MS 30U
+
+static uint8_t probe_resume_armed;
+static uint8_t probe_resume_debouncing;
+static uint32_t probe_resume_debounce_tick;
+
+static void grbl_platform_probe_resume_task(void)
+{
+  uint8_t active;
+  uint8_t m0_hold;
+
+  if (!settings.probe_resume_enable) {
+    probe_resume_armed = 0U;
+    probe_resume_debouncing = 0U;
+    return;
+  }
+
+  active = probe_get_state();
+  m0_hold = (sys.state == STATE_HOLD) &&
+            (gc_state.modal.program_flow == PROGRAM_FLOW_PAUSED) &&
+            (sys.suspend & SUSPEND_HOLD_COMPLETE);
+
+  if (!m0_hold) {
+    probe_resume_armed = 0U;
+    probe_resume_debouncing = 0U;
+    return;
+  }
+
+  /* Require release after entering HOLD. A permanently active input must not
+     immediately resume a newly reached M0 pause. */
+  if (!active) {
+    probe_resume_armed = 1U;
+    probe_resume_debouncing = 0U;
+    return;
+  }
+
+  if (!probe_resume_armed) { return; }
+
+  if (!probe_resume_debouncing) {
+    probe_resume_debouncing = 1U;
+    probe_resume_debounce_tick = HAL_GetTick();
+    return;
+  }
+
+  if ((uint32_t)(HAL_GetTick() - probe_resume_debounce_tick) >=
+      PROBE_RESUME_DEBOUNCE_MS) {
+    probe_resume_armed = 0U;
+    probe_resume_debouncing = 0U;
+    system_set_exec_state_flag(EXEC_CYCLE_START);
+  }
+}
+
 static const char *grbl_state_text(uint8_t state)
 {
   if (state & STATE_ALARM) { return "ALARM"; }
@@ -45,6 +97,8 @@ void grbl_platform_init(void)
 void grbl_platform_task(void)
 {
   uint32_t now = HAL_GetTick();
+
+  grbl_platform_probe_resume_task();
 
   if ((uint32_t)(now - grbl_display_sample_tick) >= 1000U) {
     grbl_display_sample_tick = now;

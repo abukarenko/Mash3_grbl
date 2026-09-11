@@ -170,6 +170,9 @@ uint8_t gc_execute_line(char *line)
             word_bit = MODAL_GROUP_G1;
             gc_block.modal.motion = int_value;
             if (int_value == 38){
+              if (settings.probe_resume_enable) {
+                FAIL(STATUS_GCODE_UNSUPPORTED_COMMAND);
+              }
               if (!((mantissa == 20) || (mantissa == 30) || (mantissa == 40) || (mantissa == 50))) {
                 FAIL(STATUS_GCODE_UNSUPPORTED_COMMAND); // [Unsupported G38.x command]
               }

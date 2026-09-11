@@ -27,6 +27,8 @@
 
 #ifndef defaults_h
 
+#define DEFAULT_PROBE_RESUME_ENABLE 0 // $7: keep PROBE in its standard role.
+
 #ifdef DEFAULTS_GENERIC
   // Grbl generic default settings. Should work across different machines.
   #define DEFAULT_X_STEPS_PER_MM 250.0f
