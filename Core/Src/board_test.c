@@ -428,21 +428,42 @@ static void lcd_pin_diagnostic_task(void) {
   lcd_pin_diagnostic_tick = now;
 }
 
-static void tft_write8(uint8_t value) {
-  for (uint8_t bit = 0U; bit < 8U; bit++) {
-    LCD_CLK_GPIO_Port->BSRR = (uint32_t)LCD_CLK_Pin << 16U;
-    if ((value & 0x80U) != 0U) {
-      LCD_DIN_GPIO_Port->BSRR = LCD_DIN_Pin;
-    } else {
-      LCD_DIN_GPIO_Port->BSRR = (uint32_t)LCD_DIN_Pin << 16U;
-    }
-    __NOP();
-    __NOP();
-    LCD_CLK_GPIO_Port->BSRR = LCD_CLK_Pin;
-    __NOP();
-    __NOP();
-    value <<= 1U;
+#if defined(__GNUC__)
+#pragma GCC push_options
+#pragma GCC optimize("O3")
+#endif
+
+#if defined(__GNUC__)
+#define TFT_ALWAYS_INLINE __attribute__((always_inline)) inline
+#else
+#define TFT_ALWAYS_INLINE inline
+#endif
+
+/* PB8 (CLK) and PB9 (MOSI) share GPIOB. Updating both pins with one BSRR
+   write and unrolling the byte removes the O0 loop and delay overhead from
+   the display path. The XPT2046 keeps its separate, slower SPI timing. */
+static TFT_ALWAYS_INLINE void tft_write_bit(uint8_t value, uint8_t mask) {
+  uint32_t clock_low_and_data = (uint32_t)LCD_CLK_Pin << 16U;
+
+  if ((value & mask) != 0U) {
+    clock_low_and_data |= LCD_DIN_Pin;
+  } else {
+    clock_low_and_data |= (uint32_t)LCD_DIN_Pin << 16U;
   }
+
+  LCD_CLK_GPIO_Port->BSRR = clock_low_and_data;
+  LCD_CLK_GPIO_Port->BSRR = LCD_CLK_Pin;
+}
+
+static TFT_ALWAYS_INLINE void tft_write8(uint8_t value) {
+  tft_write_bit(value, 0x80U);
+  tft_write_bit(value, 0x40U);
+  tft_write_bit(value, 0x20U);
+  tft_write_bit(value, 0x10U);
+  tft_write_bit(value, 0x08U);
+  tft_write_bit(value, 0x04U);
+  tft_write_bit(value, 0x02U);
+  tft_write_bit(value, 0x01U);
   LCD_CLK_GPIO_Port->BSRR = (uint32_t)LCD_CLK_Pin << 16U;
 }
 
@@ -562,7 +583,7 @@ static void tft_init(void) {
   tft_write_command(0x29U);
 }
 
-static void tft_stream_rgb(uint32_t rgb) {
+static TFT_ALWAYS_INLINE void tft_stream_rgb(uint32_t rgb) {
   tft_write8((uint8_t)((rgb >> 16U) & 0xFCU));
   tft_write8((uint8_t)((rgb >> 8U) & 0xFCU));
   tft_write8((uint8_t)(rgb & 0xFCU));
@@ -1085,6 +1106,10 @@ static void tft_draw_dashboard(void) {
   tft_button_state_mask = 0U;
   tft_button_redraw_active = 0U;
 }
+
+#if defined(__GNUC__)
+#pragma GCC pop_options
+#endif
 
 static void update_status_led(void) {
   GPIO_PinState led_state = GPIO_PIN_RESET;
